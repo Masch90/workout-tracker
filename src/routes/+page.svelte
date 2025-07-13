@@ -1,178 +1,45 @@
 <script lang="ts">
-// TypeScript interfaces for type safety
-interface Exercise {
-  name: string;
-  image: string;
-  alt: string;
-  type: 'repetition' | 'time';
-  get value(): string;
-}
+import { EXERCISE_DATA, DEFAULT_CONFIG } from '$lib/data/exercises';
+import { ProgressiveOverloadService } from '$lib/services/progressiveOverload';
+import { StorageService } from '$lib/services/storage';
+import type { 
+  Exercise, 
+  ProgressiveOverloadConfig, 
+  TargetCalculation,
+  IntervalCalculation,
+  StorageKeys 
+} from '$lib/types';
 
-interface ProgressiveOverloadConfig {
-  repetitionBase: number;
-  timeBaseMinutes: number;
-  timeBaseSeconds: number;
-  repetitionIncrease: number;
-  timeIncrease: number;
-  daysForIncrease: number;
-}
+// Initialize progressive overload service
+const progressiveOverloadService = new ProgressiveOverloadService(DEFAULT_CONFIG);
 
-interface TargetCalculation {
-  repetitionTarget: number;
-  timeMinutes: number;
-  timeSeconds: number;
-  daysUntilNext: number;
-}
+// Reactive start date using Svelte 5 runes
+let startDate = $state(StorageService.loadStartDate());
 
-// Configuration object - centralize all settings
-const CONFIG: ProgressiveOverloadConfig = {
-  repetitionBase: 5,
-  timeBaseMinutes: 1,
-  timeBaseSeconds: 30,
-  repetitionIncrease: 1,
-  timeIncrease: 5,
-  daysForIncrease: 5
-};
-
-// Local storage keys
-const STORAGE_KEYS = {
-  START_DATE: 'workout-tracker-start-date'
-} as const;
-
-// Local storage functions
-function saveStartDate(date: Date): void {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(STORAGE_KEYS.START_DATE, date.toISOString());
-  }
-}
-
-function loadStartDate(): Date {
-  if (typeof window !== 'undefined') {
-    const saved = localStorage.getItem(STORAGE_KEYS.START_DATE);
-    if (saved) {
-      return new Date(saved);
-    }
-  }
-  // Fallback to default date
-  const defaultDate = new Date('2025-07-10');
-  saveStartDate(defaultDate); // Save for next time
-  return defaultDate;
-}
-
-// Calculate how many complete intervals fit into days, and return the remainder
-function calculateIntervalsAndRemainder(totalDays: number, intervalSize: number): { 
-  completedIntervals: number; 
-  remainingDays: number 
-} {
-  const completedIntervals = Math.floor(totalDays / intervalSize);
-  const remainingDays = totalDays % intervalSize;
-  
-  return { completedIntervals, remainingDays };
-}
-
-// Load start date from localStorage or use default
-const startDate = loadStartDate();
-const startDateFormatted = startDate.toLocaleDateString('en-US', { 
+// Derived values using Svelte 5 runes
+const startDateFormatted = $derived(startDate.toLocaleDateString('en-US', { 
   weekday: 'long', 
   year: 'numeric', 
   month: 'long', 
   day: 'numeric' 
-});
+}));
 
-// Calculate days since start
-const today = new Date();
-const daysSinceStart = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+const daysSinceStart = $derived(progressiveOverloadService.calculateDaysSinceStart(startDate));
+const targets = $derived(progressiveOverloadService.calculateTargets(daysSinceStart));
 
-// Calculate current targets based on days since start
-const intervalCalculation = calculateIntervalsAndRemainder(daysSinceStart, CONFIG.daysForIncrease);
-const repetitionIncreases = intervalCalculation.completedIntervals * CONFIG.repetitionIncrease;
-const timeIncreases = intervalCalculation.completedIntervals * CONFIG.timeIncrease;
+const currentRepetitionTarget = $derived(targets.repetitionTarget);
+const currentTimeTargetMinutes = $derived(targets.timeMinutes);
+const currentTimeTargetSeconds = $derived(targets.timeSeconds);
+const daysUntilNextIncrease = $derived(targets.daysUntilNext);
 
-const currentRepetitionTarget = CONFIG.repetitionBase + repetitionIncreases;
-const currentTimeTargetMinutes = CONFIG.timeBaseMinutes + Math.floor(timeIncreases / 60);
-const currentTimeTargetSeconds = CONFIG.timeBaseSeconds + (timeIncreases % 60);
-
-// Calculate days until next increase
-const daysUntilNextIncrease = intervalCalculation.remainingDays;
-
-// Helper function to format time
-function formatTime(minutes: number, seconds: number): string {
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-}
-
-// Function to update start date
+// Function to update start date - now reactive with runes!
 function updateStartDate(newDate: Date): void {
-  saveStartDate(newDate);
-  // Reload the page to recalculate everything with new date
-  window.location.reload();
+  StorageService.saveStartDate(newDate);
+  startDate = newDate; // This triggers all derived values
 }
 
-// Exercise data structure
-const EXERCISE_DATA: Omit<Exercise, 'value'>[] = [
-  {
-    name: 'Push-ups',
-    image: '/assets/push-up.png',
-    alt: 'Person doing push-ups',
-    type: 'repetition'
-  },
-  {
-    name: 'Plank',
-    image: '/assets/plank.png',
-    alt: 'Person doing plank',
-    type: 'time'
-  },
-  {
-    name: 'Plank sideway left',
-    image: '/assets/plank-sideways-left.png',
-    alt: 'Person doing side plank left',
-    type: 'time'
-  },
-  {
-    name: 'Plank sideway right',
-    image: '/assets/plank-sideway-right.jpg',
-    alt: 'Person doing side plank right',
-    type: 'time'
-  },
-  {
-    name: 'Wall sit',
-    image: '/assets/wallsit.jpg',
-    alt: 'Person doing wall sit',
-    type: 'time'
-  },
-  {
-    name: 'Leg raises',
-    image: '/assets/legraise.jpg',
-    alt: 'Person doing leg raises',
-    type: 'repetition'
-  },
-  {
-    name: 'Crunches',
-    image: '/assets/crunch.jpg',
-    alt: 'Person doing crunches',
-    type: 'repetition'
-  },
-  {
-    name: 'Crunches sideways left',
-    image: '/assets/crunch-side.jpg',
-    alt: 'Person doing side crunches left',
-    type: 'repetition'
-  },
-  {
-    name: 'Crunches sideways right',
-    image: '/assets/crunch-side.jpg',
-    alt: 'Person doing side crunches right',
-    type: 'repetition'
-  },
-  {
-    name: 'Alternating single leg raises',
-    image: '/assets/alternating-leg-raises.jpg',
-    alt: 'Person doing alternating single leg raises',
-    type: 'repetition'
-  }
-];
-
-// Generate exercises with computed values
-const exercises: Exercise[] = EXERCISE_DATA.map(data => ({
+// Generate exercises with computed values using runes
+const exercises = $derived(EXERCISE_DATA.map(data => ({
   ...data,
   get value() { 
     if (data.name === 'Alternating single leg raises') {
@@ -180,9 +47,9 @@ const exercises: Exercise[] = EXERCISE_DATA.map(data => ({
     }
     return data.type === 'repetition' 
       ? `${currentRepetitionTarget} reps`
-      : formatTime(currentTimeTargetMinutes, currentTimeTargetSeconds);
+      : progressiveOverloadService.formatTime(currentTimeTargetMinutes, currentTimeTargetSeconds);
   }
-}));
+})));
 </script>
 
 <main class="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 py-8 px-2">
@@ -223,7 +90,7 @@ const exercises: Exercise[] = EXERCISE_DATA.map(data => ({
       </div>
       <div>
         <p class="text-blue-300 font-semibold">Time Exercises</p>
-        <p class="text-gray-200">Current target: {formatTime(currentTimeTargetMinutes, currentTimeTargetSeconds)}</p>
+        <p class="text-gray-200">Current target: {progressiveOverloadService.formatTime(currentTimeTargetMinutes, currentTimeTargetSeconds)}</p>
       </div>
     </div>
     <p class="text-center text-blue-300 mt-4 font-semibold">
