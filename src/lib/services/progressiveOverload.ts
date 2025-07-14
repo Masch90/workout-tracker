@@ -7,10 +7,17 @@ export class ProgressiveOverloadService {
    * Calculate how many complete intervals fit into days, and return the remainder
    */
   calculateIntervalsAndRemainder(totalDays: number, intervalSize: number): IntervalCalculation {
-    const completedIntervals = Math.floor(totalDays / intervalSize);
-    const remainingDays = totalDays % intervalSize;
-    
-    return { completedIntervals, remainingDays };
+    let completedIntervals = 0;
+    let currentTotalDays = totalDays;
+    let currentIntervalSize = intervalSize;
+
+    while (currentTotalDays >= currentIntervalSize) {
+      currentTotalDays -= currentIntervalSize;
+      currentIntervalSize += 1;
+      completedIntervals += 1;
+    }
+  
+    return { completedIntervals, remainingDays: currentIntervalSize - currentTotalDays };
   }
 
   /**
